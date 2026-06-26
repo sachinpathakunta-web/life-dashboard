@@ -8,31 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="My Dashboard"/>
 <meta name="theme-color" content="#0d1117"/>
 <title>Sachin's Life Dashboard</title>
-<link rel="apple-touch-icon" href="icon.png"/>
-<script>
-// Generate star icon as canvas and set it
-window.addEventListener('load', function() {
-  try {
-    var c = document.createElement('canvas');
-    c.width = 180; c.height = 180;
-    var ctx = c.getContext('2d');
-    // Background
-    var grad = ctx.createLinearGradient(0,0,180,180);
-    grad.addColorStop(0,'#1a1f2e');
-    grad.addColorStop(1,'#0d1117');
-    ctx.fillStyle = grad;
-    ctx.roundRect(0,0,180,180,36);
-    ctx.fill();
-    // Star
-    ctx.font = '100px serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('⭐', 90, 95);
-    var link = document.querySelector("link[rel='apple-touch-icon']");
-    if(link) link.href = c.toDataURL('image/png');
-  } catch(e) {}
-});
-</script>
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA9zQYyAAAFUElEQVR4nO3dzW4TSxCG4bLFlkisfC/cv7iXrCKRCwgLGDRxxp7p6Z+q/up9tkcn8XS/LhdEwMUG+v7j9jHy+yGG97fXy6jv1fUbETC29Ay8+RcmYpRoHXezL0bIqNEq7OovQshoqTbsa83/TMxorbapU+8GQsYIZ6Z18YQmZoxyprWioIkZo5U2dzhoYoaXkvYOBU3M8Ha0wd2giRlRHGnxadDEjGj2mnwYNDEjqmdtVv1gBYhmM2imM6J71OiXoIkZs9hqlZUDUj4FzXTGbO6bZUJDyv+gmc6Y1bpdJjSkEDSkXM1YNzC/pWEmNKQQNKQQNKRc2Z/H+P3r1fslyPv+4/bBhIYUgh5gmc5M6f4IGlIIGlIIurP7NYO1oy+ChhSC7ohpPB5BOyD0fggaUgi6E6awD4J2QvB9EDSkEHQHR6cvU7o9goYUgm6MqeuLoJ3xBmiLoCGFoBti2voj6AB4I7RD0JBC0I0wZWMg6CB4Q7RB0A0QYxwEDSkEHQiTvh5BVyLCWAgaUgg6GCZ+HYKuQHzxEDSkEPRJPaczk/88goYUgg6KKX0OQZ9AbHERNKQQdGB8EpQj6EJEFhtBQwpBF/CYznwilCFoSCFoSCHogzw/+lk7jiNoSLmM/re+mTa5vPy8Df1+wyf06AeEH4+7dlk5iFqf1x0PXznusYJo8R5W7r8o9D4AtBPhLt2DNotxEKgT5Q5DBG0W50BQLtLdue/QW9ir5xAp5EWYCb0W8aDwWdQ7Chm0WdwDQ+y7CRu0WeyDyyr6nYTcobewV/uKHvIi9IRem+VAFc109tMEbTbXwaqY7cynCtpsvgOe2YxnPc0OvYW9uo8ZQ15MN6HXZj74qGY/06mDNpv/AiJROMvpgzbTuAhvKmc49Q69hb26jErIC4kJvaZ2QT0pnpVc0GaaF9Wa6hlJBm2me2EtKJ+N3A69hb36L+WQF7ITei3DRe7JcgYpgjbLc6FbMj17mqDNcl3sItszp9iht6jv1dlCXqSa0GvKF678bHvSBm2mefGKz1QiddDQkzpoxT1a8ZlKpA4aeggaUggaUtIGrbxrKj/bnrRBQxNBQ0rKoDN8JGd4xi0pg4YugoaUdEFn+ijO9KyLdEFDG0FDCkFDSqqgM+6U2Z45VdDQR9CQkibobB+9a5me/Zv3C8hg/ef8MsXlIc2E9nL/h1az/yHW3pjQnTwLd/lvTOv2Ukzo0eEcncIjp3WWNw8TuqEzgTKt20oxoUeonbbs1m3I/912vSdfjxB7vmb1Nw4TukKvONSj64kd+oQRwbFbnyO9crSOwWtyqjzHCKwcB3lG8PLzJh1hSwS9I1JMUV5HZAT9RMSAIr3BIpLdoWv2zlmCyfCMpZjQd2a6aKb1VwT9z8xxzPq6e5BcOUo+itViyPzsZskntOKFKj5TiZQ/KVS/9Mw/ZZSb0HuXqB7z2t6zKgafZkJnCnkt27SWm9Bbssa8luUMpCd0lks8KsO0lprQ64si5seU/1oFuQlNyMeoTmvJH6wgL6mVAyBoSCFoSCFoSCFoSCFoSCFoSLm+v71evF8E0ML72+uFCQ0pBA0pBA0pV7O/u4f3CwFqLA0zoSGFoCHlf9CsHZjVul0mNKR8CpopjdncN8uEhpQvQTOlMYutVjcnNFEjukeNsnJAysOgmdKI6lmbTyc0USOavSZ3Vw6iRhRHWjy0QxM1vB1t8PAvCokaXkraK/pdDqLGaKXNFf+2HVFjlDOtVcXJX/SIHmqGZtUPVpjWaK22qWZBMq1Ro9VwbD5hCRslWn/Kd10ZiBtbeq6qQ3dgAs9p5K+1/gBlF5b0rJpWIAAAAABJRU5ErkJggg=="/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{background:#0d1117;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif;min-height:100vh;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
