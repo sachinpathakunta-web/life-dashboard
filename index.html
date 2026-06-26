@@ -8,7 +8,31 @@
 <meta name="apple-mobile-web-app-title" content="My Dashboard"/>
 <meta name="theme-color" content="#0d1117"/>
 <title>Sachin's Life Dashboard</title>
-<link rel="apple-touch-icon" href="https://fav.farm/🏃"/>
+<link rel="apple-touch-icon" href="icon.png"/>
+<script>
+// Generate star icon as canvas and set it
+window.addEventListener('load', function() {
+  try {
+    var c = document.createElement('canvas');
+    c.width = 180; c.height = 180;
+    var ctx = c.getContext('2d');
+    // Background
+    var grad = ctx.createLinearGradient(0,0,180,180);
+    grad.addColorStop(0,'#1a1f2e');
+    grad.addColorStop(1,'#0d1117');
+    ctx.fillStyle = grad;
+    ctx.roundRect(0,0,180,180,36);
+    ctx.fill();
+    // Star
+    ctx.font = '100px serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⭐', 90, 95);
+    var link = document.querySelector("link[rel='apple-touch-icon']");
+    if(link) link.href = c.toDataURL('image/png');
+  } catch(e) {}
+});
+</script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{background:#0d1117;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Inter',sans-serif;min-height:100vh;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
