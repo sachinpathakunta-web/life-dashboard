@@ -454,6 +454,71 @@ function getApprec(s){
   return a;
 }
 
+// ── Monthly helpers ───────────────────────────────────────────────────────────
+const TARGET_WEIGHT=70;
+const WEIGHT_KEY="sachin_weights_v1";
+
+function getFirstSaturday(y,m){
+  const d=new Date(y,m,1);
+  while(d.getDay()!==6)d.setDate(d.getDate()+1);
+  return d;
+}
+function isWeightDay(){const t=new Date();return toKey(t)===toKey(getFirstSaturday(t.getFullYear(),t.getMonth()));}
+function daysUntilWeightDay(){
+  const t=new Date();
+  let fs=getFirstSaturday(t.getFullYear(),t.getMonth());
+  if(toKey(fs)<toKey(t))fs=getFirstSaturday(t.getFullYear(),t.getMonth()+1);
+  return toKey(fs)===toKey(t)?0:Math.ceil((fs-t)/86400000);
+}
+function loadWeights(){try{const r=localStorage.getItem(WEIGHT_KEY);return r?JSON.parse(r):{}}catch{return{};}}
+function saveWeights(w){try{localStorage.setItem(WEIGHT_KEY,JSON.stringify(w));}catch{}}
+function getMonthDates(y,m){const days=[];const d=new Date(y,m,1);while(d.getMonth()===m){days.push(new Date(d));d.setDate(d.getDate()+1);}return days;}
+function getMonthStats(allData,y,m){
+  const dates=getMonthDates(y,m);
+  const lg=dates.map(d=>allData[toKey(d)]||null).filter(Boolean);
+  if(!lg.length)return null;
+  const tot=dates.length;
+  const exDays=lg.filter(d=>d.gymDone||d.walkDone).length;
+  const hBreakfast=lg.filter(d=>d.breakfastQuality==="healthy").length;
+  const kElder=lg.filter(d=>d.elderDuration).length;
+  const kYounger=lg.filter(d=>d.youngerDuration).length;
+  const alcDays=lg.filter(d=>d.alcohol).length;
+  const dinnerOT=lg.filter(d=>d.dinnerTime&&toMins(d.dinnerTime)<=toMins("20:00")).length;
+  const adWalks=lg.filter(d=>d.afterDinnerWalk).length;
+  const waterDays=lg.filter(d=>(+d.waterMorning||0)+(+d.waterAfternoon||0)+(+d.waterEvening||0)+(+d.waterNight||0)>=8).length;
+  const sleepVals=lg.map(d=>calcSleep(d.sleepTime,d.wakeTime)).filter(Boolean).map(Number);
+  const avgSleep=sleepVals.length?(sleepVals.reduce((a,b)=>a+b,0)/sleepVals.length).toFixed(1):null;
+  const workArr=lg.map(d=>{if(!d.workLogin||!d.workLogout)return 0;let s=toMins(d.workLogin),e=toMins(d.workLogout);if(e<s)e+=1440;return(e-s)/60;});
+  const totalWork=workArr.reduce((a,b)=>a+b,0).toFixed(1);
+  const moodVals=lg.filter(d=>d.dayMood).map(d=>+d.dayMood);
+  const avgMood=moodVals.length?(moodVals.reduce((a,b)=>a+b,0)/moodVals.length).toFixed(1):null;
+  return{exDays,hBreakfast,kElder,kYounger,alcDays,dinnerOT,adWalks,waterDays,avgSleep,totalWork,avgMood,totalDays:tot,logged:lg.length};
+}
+function getMonthFocus(s){
+  if(!s)return[];
+  const f=[];const t=s.totalDays;
+  if(s.avgSleep&&+s.avgSleep<7)f.push({c:C.red,t:`Sleep avg ${s.avgSleep}h — aim for 7h+ nightly`});
+  if(s.waterDays<Math.floor(t*0.6))f.push({c:C.cyan,t:`Water goal hit only ${s.waterDays}/${t} days`});
+  if(s.exDays<Math.floor(t*0.6))f.push({c:C.yellow,t:`Exercise only ${s.exDays}/${t} days`});
+  if(s.alcDays>4)f.push({c:C.red,t:`Alcohol ${s.alcDays} days — try to keep it lower`});
+  if(s.kElder<Math.floor(t*0.6))f.push({c:C.pink,t:`Elder daughter play only ${s.kElder} days`});
+  if(s.kYounger<Math.floor(t*0.6))f.push({c:C.orange,t:`Younger daughter play only ${s.kYounger} days`});
+  return f;
+}
+function getMonthApprec(s){
+  if(!s)return[];
+  const a=[];const t=s.totalDays;
+  if(s.exDays>=Math.floor(t*0.7))a.push(`💪 Exercise ${s.exDays}/${t} days — outstanding!`);
+  if(s.hBreakfast>=Math.floor(t*0.7))a.push(`🍳 Healthy breakfast ${s.hBreakfast} days — excellent!`);
+  if(s.avgSleep&&+s.avgSleep>=7)a.push(`😴 Sleep avg ${s.avgSleep}h — well rested all month!`);
+  if(s.alcDays<=4)a.push(`🍺 Alcohol discipline maintained!`);
+  if(s.dinnerOT>=Math.floor(t*0.7))a.push(`🍽️ Dinner before 8pm — ${s.dinnerOT} days!`);
+  if(s.kElder>=Math.floor(t*0.7))a.push(`👧 Great time with elder daughter!`);
+  if(s.kYounger>=Math.floor(t*0.7))a.push(`👶 Wonderful time with younger daughter!`);
+  if(s.adWalks>=Math.floor(t*0.5))a.push(`🌙 After-dinner walks ${s.adWalks} days!`);
+  return a;
+}
+
 const SECTIONS=[
   {id:"morning",l:"Morning",e:"🌅"},
   {id:"work",l:"Work",e:"💼"},
@@ -490,6 +555,9 @@ function App(){
   const[activeSection,setActiveSection]=useState(null);
   const[selectedDate,setSelectedDate]=useState(toKey(new Date()));
   const[coachIdx,setCoachIdx]=useState(0);
+  const[weights,setWeights]=useState(loadWeights);
+  const[weightInput,setWeightInput]=useState("");
+  const[monthOffset,setMonthOffset]=useState(0);
   const saveTimer=useRef({});
 
   // Load from Supabase on mount
@@ -525,12 +593,14 @@ function App(){
   const todaySleep=calcSleep(yData?.sleepTime,todayData.wakeTime);
   const todayWork=(()=>{if(!todayData.workLogin||!todayData.workLogout)return null;let s=toMins(todayData.workLogin),e=toMins(todayData.workLogout);if(e<s)e+=1440;return(e-s)/60;})();
 
+  const wdDays=daysUntilWeightDay();
   const coachTips=[
     ...(focus.length?[`🎯 ${focus[0].t}`]:[]),
     ...(apprec.length?[`🏆 ${apprec[0]}`]:[]),
     `💑 Next date night in ${dnDays} day${dnDays!==1?"s":""}`,
     bdayDays<=60?`🎂 Birthday in ${bdayDays} days — turning ${age+1}!`:null,
     `💧 ${todayWater}/8 glasses of water today`,
+    isWeightDay()?`⚖️ Today is weight check day — log your weight in Month tab!`:(wdDays<=3?`⚖️ Weight check in ${wdDays} day${wdDays!==1?"s":""}!`:null),
   ].filter(Boolean);
 
   useEffect(()=>{
@@ -748,13 +818,215 @@ function App(){
     );
   }
 
-  const tabs=[{id:"dashboard",l:"Home",e:"🏠"},{id:"log",l:"Log",e:"📝"},{id:"weekly",l:"Week",e:"📊"}];
+  // ── Monthly Insights ──
+  function MonthlyView(){
+    const today=new Date();
+    const viewYear=today.getMonth()-monthOffset<0?today.getFullYear()-1:today.getFullYear();
+    const viewMonth=(today.getMonth()-monthOffset+12)%12;
+    const isCurrentMonth=monthOffset===0;
+    const displayMonth=new Date(viewYear,viewMonth,1).toLocaleDateString("en-IN",{month:"long",year:"numeric"});
+    const s=getMonthStats(allData,viewYear,viewMonth);
+    const mFocus=getMonthFocus(s);
+    const mApprec=getMonthApprec(s);
+    const weightDayReminder=isWeightDay();
+    const wdDays=daysUntilWeightDay();
+    const monthWeightKey=`${viewYear}-${String(viewMonth+1).padStart(2,"0")}`;
+    const monthWeight=weights[monthWeightKey];
+
+    function saveWeight(){
+      if(!weightInput)return;
+      const w={...weights,[monthWeightKey]:+weightInput};
+      setWeights(w);saveWeights(w);
+      setWeightInput("");
+      showToast("⚖️ Weight saved!");
+    }
+
+    const rows=s?[
+      {l:"🏋️ Exercise days",v:`${s.exDays}/${s.totalDays}`,ok:s.exDays>=Math.floor(s.totalDays*0.6)},
+      {l:"🍳 Healthy breakfast",v:`${s.hBreakfast}/${s.totalDays}`,ok:s.hBreakfast>=Math.floor(s.totalDays*0.6)},
+      {l:"😴 Avg sleep",v:s.avgSleep?`${s.avgSleep}h`:"—",ok:s.avgSleep&&+s.avgSleep>=7},
+      {l:"💧 Water goal days",v:`${s.waterDays}/${s.totalDays}`,ok:s.waterDays>=Math.floor(s.totalDays*0.6)},
+      {l:"💼 Total work hrs",v:`${s.totalWork}h`,ok:+s.totalWork>=Math.floor(s.totalDays/7)*40},
+      {l:"😊 Avg mood",v:s.avgMood?`${s.avgMood}/5`:"—",ok:s.avgMood&&+s.avgMood>=3.5},
+      {l:"🍺 Alcohol days",v:`${s.alcDays}`,ok:s.alcDays<=4},
+      {l:"🍽️ Dinner on time",v:`${s.dinnerOT}/${s.totalDays}`,ok:s.dinnerOT>=Math.floor(s.totalDays*0.6)},
+      {l:"🌙 After dinner walk",v:`${s.adWalks}/${s.totalDays}`,ok:s.adWalks>=Math.floor(s.totalDays*0.4)},
+      {l:"👧 Elder daughter",v:`${s.kElder}/${s.totalDays}`,ok:s.kElder>=Math.floor(s.totalDays*0.6)},
+      {l:"👶 Younger daughter",v:`${s.kYounger}/${s.totalDays}`,ok:s.kYounger>=Math.floor(s.totalDays*0.6)},
+    ]:[];
+
+    return h("div",null,
+      // Month navigator
+      h("div",{className:"card"},
+        h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between"}},
+          h("button",{onClick:()=>setMonthOffset(o=>o+1),style:{background:C.alt,border:`1px solid ${C.border}`,color:C.tp,borderRadius:8,padding:"6px 14px",fontSize:18}},"‹"),
+          h("div",{style:{textAlign:"center"}},
+            h("div",{style:{fontSize:16,fontWeight:700}},displayMonth),
+            h("div",{style:{fontSize:11,color:C.tm,marginTop:2}},isCurrentMonth?"Current month":"Past month")
+          ),
+          h("button",{onClick:()=>setMonthOffset(o=>Math.max(0,o-1)),style:{background:C.alt,border:`1px solid ${C.border}`,color:monthOffset===0?C.tm:C.tp,borderRadius:8,padding:"6px 14px",fontSize:18},disabled:monthOffset===0},"›")
+        )
+      ),
+
+      // Weight check reminder
+      (weightDayReminder||wdDays<=7)&&h("div",{className:"card",style:{border:`1px solid ${C.yellow}44`,background:`${C.yellow}0d`}},
+        h("div",{style:{fontSize:13,color:C.yellow,fontWeight:600,marginBottom:8}},
+          weightDayReminder?"⚖️ Today is Weight Check Day!": `⚖️ Weight check in ${wdDays} day${wdDays!==1?"s":""} (1st Saturday)`),
+        monthWeight
+          ?h("div",{style:{fontSize:13,color:C.green}},`✅ Logged: ${monthWeight} kg`)
+          :h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+            h("input",{type:"number",placeholder:"Enter weight in kg",value:weightInput,
+              onChange:e=>setWeightInput(e.target.value),style:{flex:1}}),
+            h("button",{onClick:saveWeight,style:{background:C.green,color:"#fff",borderRadius:8,padding:"10px 16px",fontSize:13,fontWeight:600,flexShrink:0}},"Save")
+          )
+      ),
+
+      // Weight log for this month (always show)
+      !weightDayReminder&&h("div",{className:"card"},
+        h("div",{className:"sec-title"},"⚖️ Weight — "+displayMonth),
+        monthWeight
+          ?h("div",null,
+            h("div",{style:{fontSize:24,fontWeight:700,color:monthWeight<=TARGET_WEIGHT?C.green:C.yellow,fontFamily:"monospace",marginBottom:4}},`${monthWeight} kg`),
+            h("div",{style:{fontSize:12,color:C.tm}},`Target: ${TARGET_WEIGHT} kg • ${monthWeight<=TARGET_WEIGHT?"✅ At or below target":`${(monthWeight-TARGET_WEIGHT).toFixed(1)} kg above target`}`)
+          )
+          :h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+            h("input",{type:"number",placeholder:"Enter weight in kg",value:weightInput,
+              onChange:e=>setWeightInput(e.target.value),style:{flex:1}}),
+            h("button",{onClick:saveWeight,style:{background:C.accent,color:"#fff",borderRadius:8,padding:"10px 16px",fontSize:13,fontWeight:600,flexShrink:0}},"Log")
+          )
+      ),
+
+      // Monthly stats
+      !s&&h("div",{className:"card"},h("div",{style:{fontSize:13,color:C.tm,textAlign:"center",padding:"20px 0"}},"No data logged for this month yet")),
+      s&&h("div",{className:"card card-glow"},
+        h("div",{className:"sec-title"},`📊 ${displayMonth} Summary`),
+        rows.map(row=>h("div",{key:row.l,className:"snap-row"},
+          h("span",{style:{color:C.ts}},row.l),
+          h("span",{style:{fontSize:13,fontWeight:700,color:row.ok?C.green:C.yellow,fontFamily:"monospace"}},`${row.v} ${row.ok?"✅":"⚠️"}`)
+        ))
+      ),
+
+      // Focus
+      mFocus.length>0&&h("div",{className:"card"},
+        h("div",{className:"sec-title",style:{color:C.red}},"🎯 Focus For Next Month"),
+        mFocus.map((f,i)=>h("div",{key:i,className:"focus-card",style:{background:`${f.c}15`,border:`1px solid ${f.c}40`}},f.t))
+      ),
+
+      // Appreciation
+      mApprec.length>0&&h("div",{className:"card"},
+        h("div",{className:"sec-title",style:{color:C.yellow}},"🏆 Monthly Wins"),
+        mApprec.map((a,i)=>h("div",{key:i,style:{fontSize:13,padding:"6px 0",borderBottom:i<mApprec.length-1?`1px solid ${C.borderL}`:"none"}},a))
+      )
+    );
+  }
+
+  // ── Trends ──
+  function TrendsView(){
+    const today=new Date();
+    // Last 6 months
+    const months=Array.from({length:6},(_,i)=>{
+      const d=new Date(today.getFullYear(),today.getMonth()-5+i,1);
+      return{y:d.getFullYear(),m:d.getMonth(),label:d.toLocaleDateString("en-IN",{month:"short"})};
+    });
+
+    const monthStats=months.map(({y,m})=>getMonthStats(allData,y,m));
+    const weightData=months.map(({y,m})=>{
+      const k=`${y}-${String(m+1).padStart(2,"0")}`;
+      return weights[k]||null;
+    });
+
+    function MiniChart({data,color,unit,goal,label}){
+      const valid=data.filter(v=>v!==null);
+      if(!valid.length)return h("div",{style:{fontSize:12,color:C.tm,padding:"20px 0",textAlign:"center"}},"No data yet");
+      const max=Math.max(...valid.map(Number));
+      const min=Math.min(...valid.map(Number));
+      const range=max-min||1;
+      const H=80;
+      return h("div",null,
+        h("div",{style:{display:"flex",alignItems:"flex-end",gap:6,height:H,marginBottom:8}},
+          data.map((v,i)=>{
+            const pct=v!=null?Math.max(0.05,(Number(v)-min)/range):0;
+            const barH=v!=null?Math.max(8,pct*H):4;
+            const isGoal=goal&&v!=null&&Number(v)>=goal;
+            const isWeightOk=unit==="kg"&&v!=null&&Number(v)<=TARGET_WEIGHT;
+            const barColor=unit==="kg"?(isWeightOk?C.green:C.yellow):(isGoal?C.green:color);
+            return h("div",{key:i,style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}},
+              v!=null&&h("div",{style:{fontSize:9,color:C.tm,fontFamily:"monospace"}},v+unit),
+              h("div",{style:{width:"100%",height:barH,background:v!=null?barColor:C.border,borderRadius:"3px 3px 0 0",transition:"height 0.4s"}}),
+              h("div",{style:{fontSize:9,color:C.tm,marginTop:2}},months[i].label)
+            );
+          })
+        ),
+        goal&&h("div",{style:{fontSize:11,color:C.tm}},`Goal: ${goal}${unit}`)
+      );
+    }
+
+    const charts=[
+      {label:"⚖️ Weight (kg)",data:weightData,color:C.accent,unit:"kg"},
+      {label:"😴 Avg Sleep (hrs)",data:monthStats.map(s=>s?.avgSleep||null),color:C.purple,unit:"h",goal:7},
+      {label:"😊 Avg Mood",data:monthStats.map(s=>s?.avgMood||null),color:C.pink,unit:"/5",goal:3.5},
+      {label:"🏋️ Exercise Days",data:monthStats.map((s,i)=>s?`${s.exDays}`:null),color:C.green,unit:"d"},
+      {label:"💧 Water Goal Days",data:monthStats.map(s=>s?`${s.waterDays}`:null),color:C.cyan,unit:"d"},
+      {label:"🍳 Healthy Breakfast",data:monthStats.map(s=>s?`${s.hBreakfast}`:null),color:C.orange,unit:"d"},
+    ];
+
+    // Best/worst month by mood
+    const moodData=monthStats.map((s,i)=>({label:months[i].label,val:s?.avgMood?+s.avgMood:null}));
+    const validMoods=moodData.filter(m=>m.val!==null);
+    const bestMonth=validMoods.length?validMoods.reduce((a,b)=>a.val>b.val?a:b):null;
+    const worstMonth=validMoods.length?validMoods.reduce((a,b)=>a.val<b.val?a:b):null;
+
+    return h("div",null,
+      h("div",{className:"card"},
+        h("div",{style:{fontSize:16,fontWeight:700,marginBottom:4}},"📈 6-Month Trends"),
+        h("div",{style:{fontSize:12,color:C.tm}},"Last 6 months at a glance")
+      ),
+
+      // Best/worst
+      (bestMonth||worstMonth)&&h("div",{className:"card"},
+        h("div",{className:"sec-title"},"📅 Monthly Highlights"),
+        bestMonth&&h("div",{style:{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${C.borderL}`,fontSize:13}},
+          h("span",{style:{color:C.ts}},"🌟 Best mood month"),
+          h("span",{style:{color:C.green,fontWeight:700}},`${bestMonth.label} (${bestMonth.val}/5)`)
+        ),
+        worstMonth&&bestMonth?.label!==worstMonth?.label&&h("div",{style:{display:"flex",justifyContent:"space-between",padding:"6px 0",fontSize:13}},
+          h("span",{style:{color:C.ts}},"📉 Toughest month"),
+          h("span",{style:{color:C.yellow,fontWeight:700}},`${worstMonth.label} (${worstMonth.val}/5)`)
+        )
+      ),
+
+      // Weight progress
+      h("div",{className:"card"},
+        h("div",{className:"sec-title",style:{color:C.accent}},"⚖️ Weight Journey"),
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}},
+          h("span",{style:{fontSize:13,color:C.ts}}),"Target: 70 kg",
+          (() => {
+            const latest=weightData.filter(Boolean).slice(-1)[0];
+            return latest?h("span",{style:{fontSize:18,fontWeight:700,color:+latest<=70?C.green:C.yellow,fontFamily:"monospace"}},`${latest} kg`):null;
+          })()
+        ),
+        h(MiniChart,{data:weightData,color:C.accent,unit:"kg"})
+      ),
+
+      // Other charts
+      charts.slice(1).map(ch=>
+        h("div",{key:ch.label,className:"card"},
+          h("div",{className:"sec-title"},ch.label),
+          h(MiniChart,{data:ch.data,color:ch.color,unit:ch.unit,goal:ch.goal})
+        )
+      )
+    );
+  }
+
+  const tabs=[{id:"dashboard",l:"Home",e:"🏠"},{id:"log",l:"Log",e:"📝"},{id:"weekly",l:"Week",e:"📊"},{id:"monthly",l:"Month",e:"📅"},{id:"trends",l:"Trends",e:"📈"}];
 
   return h(Fragment,null,
     h("div",{id:"root"},
       activeView==="dashboard"&&h(Dashboard,null),
       activeView==="log"&&h(LogView,null),
-      activeView==="weekly"&&h(Weekly,null)
+      activeView==="weekly"&&h(Weekly,null),
+      activeView==="monthly"&&h(MonthlyView,null),
+      activeView==="trends"&&h(TrendsView,null)
     ),
     h("div",{className:"nav"},
       tabs.map(tab=>h("button",{key:tab.id,className:"nav-btn",
